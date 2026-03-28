@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dispatch-db-init
+  namespace: databases
+type: Opaque
+stringData:
+  init.sql: |
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'dispatch') THEN
+        CREATE ROLE dispatch WITH LOGIN PASSWORD 'CHANGEME';
+      END IF;
+    END
+    $$;
+
+    SELECT 'CREATE DATABASE dispatch OWNER dispatch'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'dispatch')\gexec
+
+    GRANT ALL PRIVILEGES ON DATABASE dispatch TO dispatch;
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dispatch-db-init
+  namespace: databases
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init
+          image: postgres:15-alpine
+          command:
+            - sh
+            - -c
+            - |
+              PGPASSWORD=$POSTGRES_PASSWORD psql -h your-postgres-host -U postgres -f /init/init.sql
+          envFrom:
+            - secretRef:
+                name: postgres-secrets
+          volumeMounts:
+            - name: init-sql
+              mountPath: /init
+      volumes:
+        - name: init-sql
+          secret:
+            secretName: dispatch-db-init
+  backoffLimit: 3

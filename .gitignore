@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tgz
+.env
+dispatch-daemon.json
+runner.json

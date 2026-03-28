@@ -1,0 +1,66 @@
+# Example GitLab CI/CD pipeline for Dispatch
+# Adapt registry URLs and branch names to your environment
+
+stages:
+  - nix-hashes
+  - build
+
+update-nix-hashes:
+  stage: nix-hashes
+  image: nixos/nix:latest
+  before_script:
+    - nix-env -iA nixpkgs.prefetch-npm-deps
+    - git config user.email "ci@dispatch"
+    - git config user.name "Dispatch CI"
+    - git remote set-url origin "https://oauth2:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+  script:
+    - |
+      DAEMON_HASH=$(prefetch-npm-deps packages/daemon/package-lock.json 2>/dev/null)
+      MCP_HASH=$(prefetch-npm-deps packages/mcp/package-lock.json 2>/dev/null)
+      RUNNER_HASH=$(prefetch-npm-deps packages/runner/package-lock.json 2>/dev/null)
+
+      DAEMON_CURRENT=$(grep -A1 'pname = "dispatch-daemon"' flake.nix | grep -oP 'sha256-[A-Za-z0-9+/]+=*' || true)
+      MCP_CURRENT=$(grep -A1 'pname = "dispatch-mcp"' flake.nix | grep -oP 'sha256-[A-Za-z0-9+/]+=*' || true)
+      RUNNER_CURRENT=$(grep -A1 'pname = "dispatch-runner"' flake.nix | grep -oP 'sha256-[A-Za-z0-9+/]+=*' || true)
+
+      CHANGED=0
+      if [ -n "$DAEMON_HASH" ] && [ "$DAEMON_HASH" != "$DAEMON_CURRENT" ]; then
+        sed -i "s|$DAEMON_CURRENT|$DAEMON_HASH|" flake.nix
+        CHANGED=1
+      fi
+      if [ -n "$MCP_HASH" ] && [ "$MCP_HASH" != "$MCP_CURRENT" ]; then
+        sed -i "s|$MCP_CURRENT|$MCP_HASH|" flake.nix
+        CHANGED=1
+      fi
+      if [ -n "$RUNNER_HASH" ] && [ "$RUNNER_HASH" != "$RUNNER_CURRENT" ]; then
+        sed -i "s|$RUNNER_CURRENT|$RUNNER_HASH|" flake.nix
+        CHANGED=1
+      fi
+
+      if [ "$CHANGED" = "1" ]; then
+        git add flake.nix
+        git commit -m "Update Nix npmDepsHash values [skip ci]"
+        git push origin HEAD:dev
+      else
+        echo "Hashes are up to date"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"
+      changes:
+        - packages/daemon/package-lock.json
+        - packages/mcp/package-lock.json
+        - packages/runner/package-lock.json
+
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --destination "${CI_REGISTRY_IMAGE}:latest"
+      --destination "${CI_REGISTRY_IMAGE}:dev-${CI_PIPELINE_IID}-${CI_COMMIT_SHORT_SHA}"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "dev"

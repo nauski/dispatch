@@ -1,0 +1,27 @@
+{
+  "name": "@dispatch/daemon",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "dispatch-daemon": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist/"
+  ],
+  "publishConfig": {},
+  "dependencies": {
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "tsx": "^4.19.3",
+    "@types/node": "^22.13.14",
+    "@types/ws": "^8.18.0"
+  }
+}

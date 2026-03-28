@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatch
+  namespace: dispatch
+  labels:
+    app: dispatch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dispatch
+  template:
+    metadata:
+      labels:
+        app: dispatch
+    spec:
+      initContainers:
+        - name: migrate
+          image: your-registry/dispatch:latest  # Replace with your container registry
+          command: ["node", "dist/migrate.js"]
+          workingDir: /app/packages/server
+          envFrom:
+            - secretRef:
+                name: dispatch-secrets
+      containers:
+        - name: dispatch
+          image: your-registry/dispatch:latest  # Replace with your container registry
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: dispatch-secrets
+          env:
+            - name: PORT
+              value: "3000"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: ATTACHMENT_STORAGE_PATH
+              value: "/data/attachments"
+          volumeMounts:
+            - name: attachments
+              mountPath: /data/attachments
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: attachments
+          persistentVolumeClaim:
+            claimName: dispatch-attachments

@@ -1,0 +1,20 @@
+{
+  "serverUrl": "wss://your-server:3000",
+  "machineName": "desktop",
+  "maxConcurrent": 4,
+  "auth": {
+    "key": "your-api-key"
+  },
+  "roles": {
+    "infra": {
+      "workDir": "/home/user/infra",
+      "allowedTools": ["Read", "Glob", "Grep", "Edit", "Write", "Bash(kubectl *)", "Bash(flux *)"]
+    },
+    "dev": {
+      "workDir": "/home/user/projects/myapp"
+    },
+    "dotfiles": {
+      "workDir": "/home/user/.dotfiles"
+    }
+  }
+}
